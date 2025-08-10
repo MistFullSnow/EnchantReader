@@ -9,7 +9,15 @@
         android:theme="@style/Theme.EnchantReader">
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:resizeableActivity="true"
+            android:enableOnBackInvokedCallback="true"
+            android:screenOrientation="unspecified"
+            android:finishOnCloseSystemDialogs="true"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|uiMode"
+            android:immersive="true">
+            <meta-data android:name="android.max_aspect" android:value="2.4" />
+            <meta-data android:name="android.notch_support" android:value="true" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

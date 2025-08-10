@@ -28,9 +28,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.enchantreader.app.model.Act
 import com.enchantreader.app.model.Scene
 import com.enchantreader.app.pdf.PdfParser
+import com.enchantreader.app.pdf.PdfPageReader
 import com.enchantreader.app.ui.components.GlassCard
 import com.enchantreader.app.ui.theme.EnchantReaderTheme
 import kotlin.random.Random
@@ -38,6 +42,12 @@ import kotlin.random.Random
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Immersive full-screen
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        controller.hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
         setContent { EnchantReaderRoot() }
     }
 }
@@ -49,6 +59,8 @@ private fun EnchantReaderRoot() {
         val loading = remember { mutableStateOf(false) }
         val error = remember { mutableStateOf<String?>(null) }
         val selectedScene = remember { mutableStateOf<Scene?>(null) }
+        val lastUri = remember { mutableStateOf<Uri?>(null) }
+        val usePageFallback = remember { mutableStateOf(false) }
 
         val context = LocalContext.current
         val pickPdf = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -56,14 +68,22 @@ private fun EnchantReaderRoot() {
                 loading.value = true
                 error.value = null
                 selectedScene.value = null
+                usePageFallback.value = false
+                lastUri.value = uri
                 try {
                     val acts = PdfParser.parseActsAndScenes(context, uri)
                     actsState.value = acts
-                    if (acts.isNotEmpty() && acts.first().scenes.isNotEmpty()) {
-                        selectedScene.value = acts.first().scenes.first()
+                    val firstScene = acts.firstOrNull()?.scenes?.firstOrNull()
+                    if (firstScene != null && firstScene.text.trim().length >= 100) {
+                        selectedScene.value = firstScene
+                    } else {
+                        // Fallback to rendering pages if text is empty/too short
+                        usePageFallback.value = true
                     }
                 } catch (t: Throwable) {
-                    error.value = t.message
+                    // Parsing failed; try page rendering
+                    usePageFallback.value = true
+                    error.value = null
                 } finally {
                     loading.value = false
                 }
@@ -83,6 +103,7 @@ private fun EnchantReaderRoot() {
 
                     when {
                         loading.value -> CenteredText(text = "Parsing…")
+                        usePageFallback.value && lastUri.value != null -> PdfPageReader(uri = lastUri.value!!)
                         selectedScene.value != null -> ReaderPane(
                             acts = actsState.value,
                             selected = selectedScene.value!!,
@@ -127,7 +148,7 @@ private fun WelcomePane(onSelectPdf: () -> Unit) {
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "Tap Select PDF to begin. We'll detect Acts and Scenes and present them in a fun, immersive layout.",
+                text = "Tap Select PDF to begin. We'll detect Acts and Scenes and, if needed, render pages directly.",
                 style = MaterialTheme.typography.bodyMedium
             )
             Spacer(Modifier.height(12.dp))
