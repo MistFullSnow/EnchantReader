@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">EnchantReader</string>
+    <string name="select_pdf">Select PDF</string>
+    <string name="parsing">Parsing…</string>
+    <string name="no_scenes">No scenes detected. Showing full text.</string>
+</resources>
