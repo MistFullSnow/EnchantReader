@@ -1,5 +1,6 @@
 package com.enchantreader.app
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -54,7 +55,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun EnchantReaderRoot() {
-    EnchantReaderTheme {
+    // Force dark theme for proper contrast on dark glass background
+    EnchantReaderTheme(darkTheme = true) {
         val actsState = remember { mutableStateOf<List<Act>>(emptyList()) }
         val loading = remember { mutableStateOf(false) }
         val error = remember { mutableStateOf<String?>(null) }
@@ -71,17 +73,24 @@ private fun EnchantReaderRoot() {
                 usePageFallback.value = false
                 lastUri.value = uri
                 try {
+                    // Try to persist permission (may fail silently on some devices)
+                    try {
+                        context.contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    } catch (_: SecurityException) {}
+
                     val acts = PdfParser.parseActsAndScenes(context, uri)
                     actsState.value = acts
+                    val mergedTextLength = acts.flatMap { it.scenes }.sumOf { it.text.length }
                     val firstScene = acts.firstOrNull()?.scenes?.firstOrNull()
-                    if (firstScene != null && firstScene.text.trim().length >= 100) {
+                    if (mergedTextLength >= 200 && firstScene != null) {
                         selectedScene.value = firstScene
                     } else {
-                        // Fallback to rendering pages if text is empty/too short
                         usePageFallback.value = true
                     }
                 } catch (t: Throwable) {
-                    // Parsing failed; try page rendering
                     usePageFallback.value = true
                     error.value = null
                 } finally {
@@ -130,6 +139,7 @@ private fun TopBar(onSelectPdf: () -> Unit) {
     ) {
         Text(
             text = "EnchantReader",
+            color = MaterialTheme.colorScheme.onBackground,
             style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold)
         )
         Spacer(Modifier.weight(1f))
@@ -144,12 +154,14 @@ private fun WelcomePane(onSelectPdf: () -> Unit) {
             Text(
                 text = "A magical way to read your Cursed Child PDF",
                 style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.height(8.dp))
             Text(
                 text = "Tap Select PDF to begin. We'll detect Acts and Scenes and, if needed, render pages directly.",
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(Modifier.height(12.dp))
             Button(onClick = onSelectPdf) { Text("Select PDF") }
@@ -172,8 +184,8 @@ private fun ReaderPane(acts: List<Act>, selected: Scene, onSelect: (Scene) -> Un
                         Text(
                             text = act.title,
                             style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(Modifier.height(6.dp))
                     }
@@ -197,12 +209,14 @@ private fun ReaderPane(acts: List<Act>, selected: Scene, onSelect: (Scene) -> Un
                 Text(
                     text = selected.title,
                     style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
                     text = selected.text,
                     style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = Int.MAX_VALUE,
                     overflow = TextOverflow.Visible
                 )
